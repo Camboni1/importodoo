@@ -75,6 +75,27 @@
                                     </div>
                                 </div>
 
+                                <!-- Section optionnelle pour odoo.sh dev branches -->
+                                <div class="mb-4">
+                                    <div class="d-flex align-items-center gap-2 mb-2">
+                                        <label class="form-label fw-medium mb-0">Cookie de session odoo.sh</label>
+                                        <span class="badge bg-secondary">Optionnel</span>
+                                    </div>
+                                    <textarea name="platformSessionCookie" class="form-control font-monospace"
+                                              rows="2" style="font-size:.8rem"
+                                              placeholder="odoosh-session=abcdef123456..."
+                                              th:text="${connection.platformSessionCookie}"></textarea>
+                                    <div class="form-text">
+                                        <i class="bi bi-info-circle me-1"></i>
+                                        <strong>Uniquement pour les branches <code>dev.odoo.com</code> (odoo.sh).</strong>
+                                        Ces branches exigent un cookie de session odoo.sh en plus de la clé API.<br/>
+                                        <strong>Comment l'obtenir :</strong>
+                                        Ouvre ton instance dans Chrome → F12 → onglet <strong>Application</strong>
+                                        → <strong>Cookies</strong> → copie le cookie
+                                        <code>odoosh-session</code> au format <code>odoosh-session=VALEUR</code>.
+                                    </div>
+                                </div>
+
                                 <div class="d-flex gap-2">
                                     <button type="submit" class="btn btn-primary">
                                         <i class="bi bi-save me-1"></i>Enregistrer

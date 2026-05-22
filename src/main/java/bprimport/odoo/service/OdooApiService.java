@@ -4,66 +4,59 @@ import bprimport.odoo.dto.OdooFieldDto;
 import bprimport.odoo.dto.OdooModelDto;
 import bprimport.odoo.exception.OdooApiException;
 import bprimport.odoo.model.OdooConnection;
-import com.fasterxml.jackson.core.type.TypeReference;
-import com.fasterxml.jackson.databind.JsonNode;
-import com.fasterxml.jackson.databind.ObjectMapper;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
-import org.springframework.http.HttpHeaders;
-import org.springframework.http.MediaType;
 import org.springframework.stereotype.Service;
-import org.springframework.web.client.RestClient;
 
 import java.util.*;
 import java.util.concurrent.ConcurrentHashMap;
-import java.util.concurrent.atomic.AtomicLong;
 
 @Service
 public class OdooApiService {
 
     private static final Logger log = LoggerFactory.getLogger(OdooApiService.class);
-    private static final AtomicLong requestId = new AtomicLong(1);
 
-    private final ObjectMapper mapper;
+    private final XmlRpcClient xmlRpc;
 
-    /** Cache: connectionId -> sessionId */
-    private final Map<Long, String> sessionCache = new ConcurrentHashMap<>();
+    /** Cache: connectionId → uid */
+    private final Map<Long, Integer> uidCache = new ConcurrentHashMap<>();
 
-    public OdooApiService(ObjectMapper mapper) {
-        this.mapper = mapper;
+    public OdooApiService(XmlRpcClient xmlRpc) {
+        this.xmlRpc = xmlRpc;
     }
 
     // -------------------------------------------------------------------------
     // Public API
     // -------------------------------------------------------------------------
 
-    /** Authenticate and cache session. Returns uid. */
+    /** Authenticate via XML-RPC and cache uid. Returns uid. */
     public int authenticate(OdooConnection conn) {
-        Map<String, Object> authParams = new LinkedHashMap<>();
-        authParams.put("db", conn.getDatabase());
-        authParams.put("login", conn.getLogin());
-        authParams.put("password", conn.getApiKey());
-        Map<String, Object> body = buildRequest(authParams);
+        Object result = xmlRpc.call(
+            conn.getUrl() + "/xmlrpc/2/common",
+            conn.getPlatformSessionCookie(),
+            "authenticate",
+            conn.getDatabase(), conn.getLogin(), conn.getApiKey(), Map.of()
+        );
 
-        String raw = post(conn.getUrl(), "/web/session/authenticate", body, null);
-        JsonNode result = parseResult(raw);
-
-        if (result.isNull() || !result.has("uid")) {
-            throw new OdooApiException("Authentication failed: invalid credentials or database");
+        if (result == null || Boolean.FALSE.equals(result)) {
+            throw new OdooApiException(
+                "Accès refusé — clé API ou login incorrect. " +
+                "Vérifiez : 1) La clé API (Settings → API Keys) " +
+                "2) Le login (email exact) " +
+                "3) Le nom de la base de données " +
+                "4) La 2FA est désactivée sur ce compte");
         }
 
-        String sessionId = result.path("session_id").asText(null);
-        if (sessionId != null) {
-            sessionCache.put(conn.getId(), sessionId);
-        }
-        return result.path("uid").asInt();
+        int uid = ((Number) result).intValue();
+        uidCache.put(conn.getId(), uid);
+        log.debug("Authenticated uid={} for {}", uid, conn.getName());
+        return uid;
     }
 
     /** Test connection — returns true if OK */
     public boolean testConnection(OdooConnection conn) {
         try {
-            int uid = authenticate(conn);
-            return uid > 0;
+            return authenticate(conn) > 0;
         } catch (Exception e) {
             log.warn("Connection test failed for {}: {}", conn.getName(), e.getMessage());
             return false;
@@ -80,6 +73,7 @@ public class OdooApiService {
         kwargs.put("fields", List.of("name", "model", "transient"));
         kwargs.put("limit", 100);
         kwargs.put("order", "name");
+
         List<Map<String, Object>> rows = callKw(conn, "ir.model", "search_read",
             List.of(domain), kwargs);
 
@@ -94,9 +88,11 @@ public class OdooApiService {
 
     /** Get all importable fields for a model */
     public List<OdooFieldDto> getModelFields(OdooConnection conn, String model) {
-        Map<String, Object> result = callKwRaw(conn, model, "fields_get",
-            List.of(),
-            Map.of("attributes", List.of("string", "type", "required", "relation", "readonly", "store")));
+        Map<String, Object> kwargs = new LinkedHashMap<>();
+        kwargs.put("attributes",
+            List.of("string", "type", "required", "relation", "readonly", "store"));
+
+        Map<String, Object> result = callKwRaw(conn, model, "fields_get", List.of(), kwargs);
 
         List<OdooFieldDto> fields = new ArrayList<>();
         result.forEach((fieldName, obj) -> {
@@ -131,10 +127,10 @@ public class OdooApiService {
                                                   List<Object> domain,
                                                   List<String> fields,
                                                   int limit) {
-        Map<String, Object> srKwargs = new LinkedHashMap<>();
-        srKwargs.put("fields", fields);
-        srKwargs.put("limit", limit);
-        return callKw(conn, model, "search_read", List.of(domain), srKwargs);
+        Map<String, Object> kwargs = new LinkedHashMap<>();
+        kwargs.put("fields", fields);
+        kwargs.put("limit", limit);
+        return callKw(conn, model, "search_read", List.of(domain), kwargs);
     }
 
     /** Write (update) records by ID */
@@ -156,7 +152,9 @@ public class OdooApiService {
 
     /** Create a M2O record with just a name, return its ID */
     public Long createSimple(OdooConnection conn, String model, String name) {
-        List<Long> ids = createMany(conn, model, List.of(Map.of("name", name)));
+        Map<String, Object> vals = new LinkedHashMap<>();
+        vals.put("name", name);
+        List<Long> ids = createMany(conn, model, List.of(vals));
         return ids.isEmpty() ? null : ids.get(0);
     }
 
@@ -173,22 +171,19 @@ public class OdooApiService {
         return ((Number) rows.get(0).get("res_id")).longValue();
     }
 
-    /** Invalidate cached session for a connection */
+    /** Invalidate cached uid for a connection */
     public void invalidateSession(Long connectionId) {
-        sessionCache.remove(connectionId);
+        uidCache.remove(connectionId);
     }
 
     // -------------------------------------------------------------------------
     // Internal helpers
     // -------------------------------------------------------------------------
 
-    private String getSession(OdooConnection conn) {
-        String session = sessionCache.get(conn.getId());
-        if (session == null) {
-            authenticate(conn);
-            session = sessionCache.get(conn.getId());
-        }
-        return session;
+    private int getUid(OdooConnection conn) {
+        Integer uid = uidCache.get(conn.getId());
+        if (uid == null) uid = authenticate(conn);
+        return uid;
     }
 
     @SuppressWarnings("unchecked")
@@ -196,9 +191,7 @@ public class OdooApiService {
                                               String method, List<Object> args,
                                               Map<String, Object> kwargs) {
         Object result = callKwObject(conn, model, method, args, kwargs);
-        if (result instanceof List<?> list) {
-            return (List<Map<String, Object>>) list;
-        }
+        if (result instanceof List<?> list) return (List<Map<String, Object>>) list;
         return List.of();
     }
 
@@ -207,85 +200,21 @@ public class OdooApiService {
                                            String method, List<Object> args,
                                            Map<String, Object> kwargs) {
         Object result = callKwObject(conn, model, method, args, kwargs);
-        if (result instanceof Map<?, ?> map) {
-            return (Map<String, Object>) map;
-        }
+        if (result instanceof Map<?, ?> map) return (Map<String, Object>) map;
         return Map.of();
     }
 
     private Object callKwObject(OdooConnection conn, String model,
                                  String method, List<Object> args,
                                  Map<String, Object> kwargs) {
-        String session = getSession(conn);
-        Map<String, Object> params = new LinkedHashMap<>();
-        params.put("model", model);
-        params.put("method", method);
-        params.put("args", args);
-        params.put("kwargs", kwargs);
-
-        Map<String, Object> body = buildRequest(params);
-        String raw = post(conn.getUrl(), "/web/dataset/call_kw", body, session);
-
-        JsonNode resultNode = parseResult(raw);
-
-        try {
-            return mapper.treeToValue(resultNode, Object.class);
-        } catch (Exception e) {
-            throw new OdooApiException("Failed to parse result: " + e.getMessage(), e);
-        }
-    }
-
-    private String post(String baseUrl, String path, Map<String, Object> body, String sessionId) {
-        try {
-            String cleanBase = baseUrl.stripTrailing();
-            String cleanPath = path.startsWith("/") ? path.substring(1) : path;
-            String url = cleanBase + "/" + cleanPath;
-            String jsonBody = mapper.writeValueAsString(body);
-
-            RestClient client = RestClient.builder().build();
-            RestClient.RequestBodySpec spec = client.post()
-                .uri(url)
-                .header(HttpHeaders.CONTENT_TYPE, MediaType.APPLICATION_JSON_VALUE)
-                .header(HttpHeaders.ACCEPT, MediaType.APPLICATION_JSON_VALUE);
-
-            if (sessionId != null) {
-                spec = spec.header("Cookie", "session_id=" + sessionId);
-            }
-
-            return spec.body(jsonBody)
-                .retrieve()
-                .body(String.class);
-
-        } catch (Exception e) {
-            throw new OdooApiException("HTTP call failed: " + e.getMessage(), e);
-        }
-    }
-
-    private Map<String, Object> buildRequest(Map<String, Object> params) {
-        Map<String, Object> req = new LinkedHashMap<>();
-        req.put("jsonrpc", "2.0");
-        req.put("method", "call");
-        req.put("id", requestId.getAndIncrement());
-        req.put("params", params);
-        return req;
-    }
-
-    private JsonNode parseResult(String raw) {
-        try {
-            JsonNode root = mapper.readTree(raw);
-            if (root.has("error")) {
-                JsonNode err = root.get("error");
-                String msg = err.path("data").path("message").asText(
-                    err.path("message").asText("Unknown Odoo error"));
-                int code = err.path("code").asInt(-1);
-                throw new OdooApiException(msg, code);
-            }
-            return root.get("result");
-        } catch (OdooApiException e) {
-            throw e;
-        } catch (Exception e) {
-            throw new OdooApiException("Failed to parse Odoo response: " + e.getMessage(), e);
-        }
+        int uid = getUid(conn);
+        return xmlRpc.call(
+            conn.getUrl() + "/xmlrpc/2/object",
+            conn.getPlatformSessionCookie(),
+            "execute_kw",
+            conn.getDatabase(), uid, conn.getApiKey(),
+            model, method, args, kwargs
+        );
     }
 
     @SuppressWarnings("unchecked")
@@ -293,9 +222,7 @@ public class OdooApiService {
         if (obj instanceof List<?> list) {
             return list.stream().map(o -> ((Number) o).longValue()).toList();
         }
-        if (obj instanceof Number n) {
-            return List.of(n.longValue());
-        }
+        if (obj instanceof Number n) return List.of(n.longValue());
         return List.of();
     }
 }

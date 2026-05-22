@@ -53,12 +53,16 @@ public class ConnectionController {
                        @RequestParam String database,
                        @RequestParam String login,
                        @RequestParam String apiKey,
+                       @RequestParam(required = false) String platformSessionCookie,
                        RedirectAttributes flash) {
         OdooConnection conn = id != null ? connRepo.findById(id).orElse(new OdooConnection()) : new OdooConnection();
         conn.setName(name);
         conn.setUrl(url.stripTrailing());
         conn.setDatabase(database);
         conn.setLogin(login);
+        String cookie = (platformSessionCookie != null && !platformSessionCookie.isBlank())
+            ? platformSessionCookie.trim() : null;
+        conn.setPlatformSessionCookie(cookie);
         conn.setApiKey(apiKey);
         connRepo.save(conn);
         flash.addFlashAttribute("success", "Connexion '" + name + "' enregistrée.");

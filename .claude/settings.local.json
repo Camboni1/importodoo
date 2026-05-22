@@ -3,7 +3,10 @@
     "allow": [
       "PowerShell($env:JAVA_HOME = \\(Get-Command java -ErrorAction SilentlyContinue | Select-Object -ExpandProperty Source | Split-Path -Parent | Split-Path -Parent\\); Write-Output \"JAVA_HOME: $env:JAVA_HOME\"; java -version 2>&1)",
       "PowerShell($env:JAVA_HOME = \"C:\\\\Users\\\\gille\\\\.jdks\\\\openjdk-25.0.1\"; $env:PATH = \"$env:JAVA_HOME\\\\bin;$env:PATH\"; java -version 2>&1; Write-Output \"---\"; cd \"C:\\\\Users\\\\gille\\\\IdeaProjects\\\\odoo\"; .\\\\mvnw.cmd compile 2>&1 | Select-Object -First 100)",
-      "PowerShell(Get-Content \"C:\\\\Users\\\\gille\\\\IdeaProjects\\\\odoo\\\\run.log\" | Where-Object { $_ -match \"ERROR|WARN|Exception|Caused\" } | Select-Object -First 30)"
+      "PowerShell(Get-Content \"C:\\\\Users\\\\gille\\\\IdeaProjects\\\\odoo\\\\run.log\" | Where-Object { $_ -match \"ERROR|WARN|Exception|Caused\" } | Select-Object -First 30)",
+      "PowerShell(taskkill /F /IM java.exe 2>$null)",
+      "PowerShell($true)",
+      "PowerShell(cd C:\\\\Users\\\\gille\\\\IdeaProjects\\\\odoo; $env:JAVA_HOME = \"C:\\\\Users\\\\gille\\\\.jdks\\\\openjdk-25.0.1\"; .\\\\mvnw.cmd spring-boot:run 2>&1)"
     ]
   }
 }

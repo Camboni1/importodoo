@@ -26,6 +26,10 @@ public class OdooConnection {
     @Column(nullable = false, length = 512)
     private String apiKey;
 
+    /** Cookie de session odoo.sh (optionnel — pour les branches dev.odoo.com protégées) */
+    @Column(length = 1024)
+    private String platformSessionCookie;
+
     private boolean active = true;
 
     private LocalDateTime lastTestedAt;
@@ -59,6 +63,9 @@ public class OdooConnection {
 
     public String getApiKey() { return apiKey; }
     public void setApiKey(String apiKey) { this.apiKey = apiKey; }
+
+    public String getPlatformSessionCookie() { return platformSessionCookie; }
+    public void setPlatformSessionCookie(String platformSessionCookie) { this.platformSessionCookie = platformSessionCookie; }
 
     public boolean isActive() { return active; }
     public void setActive(boolean active) { this.active = active; }
