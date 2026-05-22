@@ -1,0 +1,41 @@
+<!DOCTYPE html>
+<html xmlns:th="http://www.thymeleaf.org">
+<body>
+<nav th:fragment="sidebar" class="sidebar d-flex flex-column flex-shrink-0 p-0">
+    <a href="/" class="sidebar-brand d-flex align-items-center px-3 py-3 text-decoration-none">
+        <i class="bi bi-database-up fs-4 me-2"></i>
+        <span class="fw-bold">Odoo Import</span>
+    </a>
+    <hr class="m-0 border-secondary"/>
+    <ul class="nav nav-pills flex-column mb-auto px-2 py-2">
+        <li class="nav-item">
+            <a href="/" th:classappend="${page == 'dashboard'} ? 'active'" class="nav-link">
+                <i class="bi bi-speedometer2 me-2"></i>Tableau de bord
+            </a>
+        </li>
+        <li class="nav-item mt-1">
+            <a href="/import" th:classappend="${page == 'import'} ? 'active'" class="nav-link">
+                <i class="bi bi-cloud-upload me-2"></i>Nouvel import
+            </a>
+        </li>
+        <li class="nav-item mt-1">
+            <a href="/jobs" th:classappend="${page == 'jobs'} ? 'active'" class="nav-link">
+                <i class="bi bi-list-check me-2"></i>Historique
+            </a>
+        </li>
+        <li class="nav-item mt-1">
+            <a href="/connections" th:classappend="${page == 'connections'} ? 'active'" class="nav-link">
+                <i class="bi bi-plug me-2"></i>Connexions
+            </a>
+        </li>
+    </ul>
+    <hr class="m-0 border-secondary"/>
+    <div class="px-3 py-2 sidebar-footer">
+        <small class="text-secondary">
+            <i class="bi bi-circle-fill text-success me-1" style="font-size:.5rem"></i>
+            Spring Boot + Odoo JSON-RPC
+        </small>
+    </div>
+</nav>
+</body>
+</html>

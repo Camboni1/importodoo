@@ -1,0 +1,107 @@
+<!DOCTYPE html>
+<html xmlns:th="http://www.thymeleaf.org" lang="fr">
+<head th:replace="~{fragments/head :: head('Connexion')}"></head>
+<body class="app-body">
+<div class="d-flex h-100">
+    <div th:replace="~{fragments/sidebar :: sidebar}"></div>
+    <main class="flex-grow-1 overflow-auto">
+        <div class="topbar d-flex align-items-center px-4 py-3">
+            <nav aria-label="breadcrumb">
+                <ol class="breadcrumb mb-0">
+                    <li class="breadcrumb-item"><a href="/connections">Connexions</a></li>
+                    <li class="breadcrumb-item active"
+                        th:text="${connection.id != null ? 'Modifier' : 'Nouvelle connexion'}">Nouvelle</li>
+                </ol>
+            </nav>
+        </div>
+        <div class="content-area px-4 py-3">
+            <div class="row justify-content-center">
+                <div class="col-lg-7">
+                    <div class="card border-0 shadow-sm">
+                        <div class="card-header bg-transparent">
+                            <h5 class="mb-0 fw-semibold">
+                                <i class="bi bi-plug me-2 text-primary"></i>
+                                <span th:text="${connection.id != null ? 'Modifier la connexion' : 'Nouvelle connexion Odoo'}">Connexion</span>
+                            </h5>
+                        </div>
+                        <div class="card-body">
+                            <form th:action="@{/connections/save}" method="post">
+                                <input type="hidden" name="id" th:value="${connection.id}"/>
+
+                                <div class="mb-3">
+                                    <label class="form-label fw-medium">Nom <span class="text-danger">*</span></label>
+                                    <input type="text" name="name" class="form-control"
+                                           th:value="${connection.name}" placeholder="ex: Odoo Production" required/>
+                                    <div class="form-text">Un libellé pour identifier cette connexion.</div>
+                                </div>
+
+                                <div class="mb-3">
+                                    <label class="form-label fw-medium">URL Odoo <span class="text-danger">*</span></label>
+                                    <input type="url" name="url" class="form-control"
+                                           th:value="${connection.url}"
+                                           placeholder="https://mycompany.odoo.com" required/>
+                                    <div class="form-text">Sans slash final. Ex: <code>https://mon-erp.odoo.com</code></div>
+                                </div>
+
+                                <div class="mb-3">
+                                    <label class="form-label fw-medium">Base de données <span class="text-danger">*</span></label>
+                                    <input type="text" name="database" class="form-control"
+                                           th:value="${connection.database}"
+                                           placeholder="mycompany" required/>
+                                    <div class="form-text">Nom technique de la base Odoo.</div>
+                                </div>
+
+                                <div class="mb-3">
+                                    <label class="form-label fw-medium">Login <span class="text-danger">*</span></label>
+                                    <input type="email" name="login" class="form-control"
+                                           th:value="${connection.login}"
+                                           placeholder="admin@mycompany.com" required/>
+                                </div>
+
+                                <div class="mb-4">
+                                    <label class="form-label fw-medium">Clé API <span class="text-danger">*</span></label>
+                                    <div class="input-group">
+                                        <input type="password" name="apiKey" id="apiKeyField" class="form-control font-monospace"
+                                               th:value="${connection.apiKey}"
+                                               placeholder="Clé API Odoo (remplace le mot de passe)" required/>
+                                        <button type="button" class="btn btn-outline-secondary"
+                                                onclick="toggleApiKey()">
+                                            <i class="bi bi-eye" id="apiKeyIcon"></i>
+                                        </button>
+                                    </div>
+                                    <div class="form-text">
+                                        Dans Odoo : <strong>Préférences → Clés API → Nouvelle clé</strong>.
+                                        La clé API remplace le mot de passe.
+                                    </div>
+                                </div>
+
+                                <div class="d-flex gap-2">
+                                    <button type="submit" class="btn btn-primary">
+                                        <i class="bi bi-save me-1"></i>Enregistrer
+                                    </button>
+                                    <a href="/connections" class="btn btn-outline-secondary">Annuler</a>
+                                </div>
+                            </form>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </main>
+</div>
+<div th:replace="~{fragments/scripts :: scripts}"></div>
+<script>
+function toggleApiKey() {
+    const field = document.getElementById('apiKeyField');
+    const icon = document.getElementById('apiKeyIcon');
+    if (field.type === 'password') {
+        field.type = 'text';
+        icon.className = 'bi bi-eye-slash';
+    } else {
+        field.type = 'password';
+        icon.className = 'bi bi-eye';
+    }
+}
+</script>
+</body>
+</html>

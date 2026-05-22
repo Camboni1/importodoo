@@ -1,0 +1,364 @@
+<!DOCTYPE html>
+<html xmlns:th="http://www.thymeleaf.org" lang="fr">
+<head th:replace="~{fragments/head :: head('Nouvel import')}"></head>
+<body class="app-body">
+<div class="d-flex h-100">
+    <div th:replace="~{fragments/sidebar :: sidebar}"></div>
+
+    <main class="flex-grow-1 overflow-auto">
+        <div class="topbar d-flex align-items-center px-4 py-3">
+            <h1 class="h5 mb-0 fw-semibold">Assistant d'import</h1>
+        </div>
+
+        <div class="content-area px-4 py-3">
+
+            <!-- Step indicator -->
+            <div class="wizard-steps d-flex mb-4">
+                <div class="wizard-step active" id="step-ind-1">
+                    <div class="step-num">1</div>
+                    <div class="step-label">Fichier</div>
+                </div>
+                <div class="wizard-step-line"></div>
+                <div class="wizard-step" id="step-ind-2">
+                    <div class="step-num">2</div>
+                    <div class="step-label">Modèle</div>
+                </div>
+                <div class="wizard-step-line"></div>
+                <div class="wizard-step" id="step-ind-3">
+                    <div class="step-num">3</div>
+                    <div class="step-label">Mapping</div>
+                </div>
+                <div class="wizard-step-line"></div>
+                <div class="wizard-step" id="step-ind-4">
+                    <div class="step-num">4</div>
+                    <div class="step-label">Aperçu</div>
+                </div>
+                <div class="wizard-step-line"></div>
+                <div class="wizard-step" id="step-ind-5">
+                    <div class="step-num">5</div>
+                    <div class="step-label">Import</div>
+                </div>
+            </div>
+
+            <!-- ================================================================
+                 STEP 1 : Connexion + Fichier
+            ================================================================ -->
+            <div id="step-1" class="wizard-panel">
+                <div class="card border-0 shadow-sm">
+                    <div class="card-header bg-transparent">
+                        <h5 class="mb-0 fw-semibold"><i class="bi bi-1-circle-fill text-primary me-2"></i>Connexion &amp; Fichier XLSX</h5>
+                    </div>
+                    <div class="card-body">
+
+                        <!-- Connexion selector -->
+                        <div class="mb-4">
+                            <label class="form-label fw-medium">Connexion Odoo <span class="text-danger">*</span></label>
+                            <div class="d-flex gap-2">
+                                <select id="connectionId" class="form-select" onchange="onConnectionChange()">
+                                    <option value="">— Sélectionner une connexion —</option>
+                                    <option th:each="c : ${connections}"
+                                            th:value="${c.id}"
+                                            th:text="${c.name} + ' (' + ${c.database} + ')'">conn</option>
+                                </select>
+                                <button type="button" class="btn btn-outline-secondary text-nowrap" onclick="testConnection()" id="btnTest">
+                                    <i class="bi bi-wifi me-1"></i>Tester
+                                </button>
+                            </div>
+                            <div id="connTestResult" class="mt-2 small"></div>
+                            <div th:if="${connections.empty}" class="mt-2">
+                                <a href="/connections/new" class="btn btn-sm btn-warning">
+                                    <i class="bi bi-plus me-1"></i>Créer une connexion d'abord
+                                </a>
+                            </div>
+                        </div>
+
+                        <!-- File drop zone -->
+                        <div class="mb-4">
+                            <label class="form-label fw-medium">Fichier XLSX / XLS <span class="text-danger">*</span></label>
+                            <div class="drop-zone" id="dropZone" onclick="document.getElementById('fileInput').click()">
+                                <div id="dropZoneContent">
+                                    <i class="bi bi-file-earmark-spreadsheet fs-1 text-primary mb-2"></i>
+                                    <p class="mb-1 fw-medium">Glisser-déposer un fichier ici</p>
+                                    <p class="text-muted small mb-2">ou cliquer pour sélectionner</p>
+                                    <p class="text-muted small">XLSX, XLS — jusqu'à 500 MB</p>
+                                </div>
+                                <div id="dropZoneProgress" class="d-none">
+                                    <div class="spinner-border text-primary mb-2"></div>
+                                    <p class="mb-0">Chargement en cours...</p>
+                                </div>
+                            </div>
+                            <input type="file" id="fileInput" accept=".xlsx,.xls" class="d-none" onchange="onFileSelected(this)"/>
+                        </div>
+
+                        <!-- Sheet selector (appears after upload) -->
+                        <div id="sheetSection" class="d-none mb-4">
+                            <label class="form-label fw-medium">Feuille <span class="text-danger">*</span></label>
+                            <select id="sheetName" class="form-select" onchange="onSheetChange()">
+                            </select>
+                            <div id="fileInfo" class="mt-2 text-muted small"></div>
+                        </div>
+
+                    </div>
+                    <div class="card-footer bg-transparent d-flex justify-content-end">
+                        <button class="btn btn-primary" onclick="goToStep2()" id="btnStep1Next" disabled>
+                            Suivant <i class="bi bi-arrow-right ms-1"></i>
+                        </button>
+                    </div>
+                </div>
+            </div>
+
+            <!-- ================================================================
+                 STEP 2 : Modèle + Options
+            ================================================================ -->
+            <div id="step-2" class="wizard-panel d-none">
+                <div class="card border-0 shadow-sm">
+                    <div class="card-header bg-transparent">
+                        <h5 class="mb-0 fw-semibold"><i class="bi bi-2-circle-fill text-primary me-2"></i>Modèle Odoo &amp; Options</h5>
+                    </div>
+                    <div class="card-body">
+
+                        <div class="row g-3">
+                            <div class="col-md-8">
+                                <label class="form-label fw-medium">Modèle Odoo <span class="text-danger">*</span></label>
+                                <input type="text" id="modelSearch" class="form-control" placeholder="Rechercher un modèle... (ex: Contact, Produit)"
+                                       oninput="searchModels(this.value)" autocomplete="off"/>
+                                <div id="modelResults" class="model-dropdown d-none"></div>
+                                <div id="modelSelected" class="mt-2 d-none">
+                                    <span class="badge bg-primary-subtle text-primary border border-primary-subtle px-3 py-2 fs-6">
+                                        <i class="bi bi-check-circle me-1"></i>
+                                        <span id="modelSelectedLabel"></span>
+                                        <code class="ms-2 small" id="modelSelectedName"></code>
+                                        <button type="button" class="btn-close btn-close-sm ms-2" onclick="clearModel()"></button>
+                                    </span>
+                                </div>
+                            </div>
+                        </div>
+
+                        <hr/>
+
+                        <h6 class="fw-semibold mb-3">Options d'import</h6>
+                        <div class="row g-3">
+                            <div class="col-md-4">
+                                <label class="form-label">Correspondance par</label>
+                                <select id="optMatchBy" class="form-select form-select-sm">
+                                    <option value="name">Nom (par défaut)</option>
+                                    <option value="id">ID Odoo</option>
+                                    <option value="external_id">ID externe (xmlid)</option>
+                                </select>
+                            </div>
+                            <div class="col-md-4">
+                                <label class="form-label">En cas de doublon</label>
+                                <select id="optOnConflict" class="form-select form-select-sm">
+                                    <option value="update">Mettre à jour</option>
+                                    <option value="skip">Ignorer</option>
+                                </select>
+                            </div>
+                            <div class="col-md-4">
+                                <label class="form-label">Taille de lot (batch)</label>
+                                <input type="number" id="optBatchSize" class="form-control form-control-sm" value="100" min="1" max="1000"/>
+                                <div class="form-text">Enregistrements par appel API</div>
+                            </div>
+                            <div class="col-md-6">
+                                <div class="form-check form-switch">
+                                    <input class="form-check-input" type="checkbox" id="optSkipEmpty" checked/>
+                                    <label class="form-check-label" for="optSkipEmpty">Ignorer les lignes vides</label>
+                                </div>
+                            </div>
+                            <div class="col-md-6">
+                                <div class="form-check form-switch">
+                                    <input class="form-check-input" type="checkbox" id="optStopOnError"/>
+                                    <label class="form-check-label" for="optStopOnError">Stopper sur première erreur</label>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="card-footer bg-transparent d-flex justify-content-between">
+                        <button class="btn btn-outline-secondary" onclick="goToStep(1)">
+                            <i class="bi bi-arrow-left me-1"></i>Retour
+                        </button>
+                        <button class="btn btn-primary" onclick="goToStep3()" id="btnStep2Next" disabled>
+                            Suivant <i class="bi bi-arrow-right ms-1"></i>
+                        </button>
+                    </div>
+                </div>
+            </div>
+
+            <!-- ================================================================
+                 STEP 3 : Mapping colonnes → champs Odoo
+            ================================================================ -->
+            <div id="step-3" class="wizard-panel d-none">
+                <div class="card border-0 shadow-sm">
+                    <div class="card-header bg-transparent d-flex align-items-center">
+                        <h5 class="mb-0 fw-semibold"><i class="bi bi-3-circle-fill text-primary me-2"></i>Correspondance des colonnes</h5>
+                        <span class="ms-auto badge bg-secondary" id="mappingBadge">0 colonnes</span>
+                    </div>
+                    <div class="card-body p-0">
+                        <div id="mappingSpinner" class="text-center py-5">
+                            <div class="spinner-border text-primary mb-3"></div>
+                            <p>Chargement des champs Odoo...</p>
+                        </div>
+                        <div id="mappingTable" class="d-none">
+                            <div class="px-3 py-2 bg-light border-bottom">
+                                <small class="text-muted">
+                                    <i class="bi bi-info-circle me-1"></i>
+                                    Associez chaque colonne Excel à un champ Odoo. Laissez "— Ignorer —" pour exclure une colonne.
+                                </small>
+                            </div>
+                            <div class="table-responsive">
+                                <table class="table table-bordered table-sm mb-0 align-middle" id="mappingTableEl">
+                                    <thead class="table-light">
+                                        <tr>
+                                            <th style="width:30%">Colonne Excel</th>
+                                            <th style="width:10%">Aperçu</th>
+                                            <th style="width:35%">Champ Odoo</th>
+                                            <th style="width:15%">Type</th>
+                                            <th style="width:10%">Créer si absent</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody id="mappingBody">
+                                    </tbody>
+                                </table>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="card-footer bg-transparent d-flex justify-content-between">
+                        <button class="btn btn-outline-secondary" onclick="goToStep(2)">
+                            <i class="bi bi-arrow-left me-1"></i>Retour
+                        </button>
+                        <button class="btn btn-primary" onclick="goToStep4()">
+                            Aperçu <i class="bi bi-arrow-right ms-1"></i>
+                        </button>
+                    </div>
+                </div>
+            </div>
+
+            <!-- ================================================================
+                 STEP 4 : Aperçu des données
+            ================================================================ -->
+            <div id="step-4" class="wizard-panel d-none">
+                <div class="card border-0 shadow-sm">
+                    <div class="card-header bg-transparent d-flex align-items-center">
+                        <h5 class="mb-0 fw-semibold"><i class="bi bi-4-circle-fill text-primary me-2"></i>Aperçu des données</h5>
+                        <span class="ms-auto text-muted small" id="previewInfo"></span>
+                    </div>
+                    <div class="card-body p-0">
+                        <div id="previewSpinner" class="text-center py-5">
+                            <div class="spinner-border text-primary mb-3"></div>
+                            <p>Chargement de l'aperçu...</p>
+                        </div>
+                        <div id="previewContent" class="d-none">
+                            <div class="table-responsive" style="max-height:400px;overflow:auto">
+                                <table class="table table-bordered table-sm table-hover mb-0 align-top" id="previewTableEl">
+                                    <thead class="table-dark sticky-top"></thead>
+                                    <tbody></tbody>
+                                </table>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="card-footer bg-transparent d-flex justify-content-between align-items-center">
+                        <button class="btn btn-outline-secondary" onclick="goToStep(3)">
+                            <i class="bi bi-arrow-left me-1"></i>Retour
+                        </button>
+                        <div class="d-flex gap-2">
+                            <button class="btn btn-outline-warning" onclick="startImport(true)" id="btnTest">
+                                <i class="bi bi-play-circle me-1"></i>Tester (100 lignes)
+                            </button>
+                            <button class="btn btn-success" onclick="startImport(false)" id="btnImport">
+                                <i class="bi bi-cloud-upload me-1"></i>Importer
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- ================================================================
+                 STEP 5 : Progression
+            ================================================================ -->
+            <div id="step-5" class="wizard-panel d-none">
+                <div class="card border-0 shadow-sm">
+                    <div class="card-header bg-transparent d-flex align-items-center">
+                        <h5 class="mb-0 fw-semibold" id="progressTitle">
+                            <i class="bi bi-5-circle-fill text-primary me-2"></i>Import en cours...
+                        </h5>
+                        <span class="ms-auto badge" id="statusBadge">EN COURS</span>
+                    </div>
+                    <div class="card-body">
+
+                        <!-- Progress bar -->
+                        <div class="mb-4">
+                            <div class="d-flex justify-content-between mb-1">
+                                <span id="progressLabel" class="small text-muted">Initialisation...</span>
+                                <span id="progressPct" class="small fw-semibold">0%</span>
+                            </div>
+                            <div class="progress" style="height:12px">
+                                <div class="progress-bar progress-bar-striped progress-bar-animated bg-primary"
+                                     id="progressBar" role="progressbar" style="width:0%"></div>
+                            </div>
+                        </div>
+
+                        <!-- Stats row -->
+                        <div class="row g-2 mb-4 text-center">
+                            <div class="col-3">
+                                <div class="p-2 bg-light rounded">
+                                    <div class="fs-4 fw-bold" id="statTotal">0</div>
+                                    <div class="small text-muted">Total</div>
+                                </div>
+                            </div>
+                            <div class="col-3">
+                                <div class="p-2 bg-success-subtle rounded">
+                                    <div class="fs-4 fw-bold text-success" id="statSuccess">0</div>
+                                    <div class="small text-muted">Succès</div>
+                                </div>
+                            </div>
+                            <div class="col-3">
+                                <div class="p-2 bg-danger-subtle rounded">
+                                    <div class="fs-4 fw-bold text-danger" id="statErrors">0</div>
+                                    <div class="small text-muted">Erreurs</div>
+                                </div>
+                            </div>
+                            <div class="col-3">
+                                <div class="p-2 bg-warning-subtle rounded">
+                                    <div class="fs-4 fw-bold text-warning" id="statSkipped">0</div>
+                                    <div class="small text-muted">Ignorés</div>
+                                </div>
+                            </div>
+                        </div>
+
+                        <!-- Test mode notice -->
+                        <div id="testModeNotice" class="alert alert-warning d-none">
+                            <i class="bi bi-flask me-2"></i>
+                            <strong>Mode test</strong> — Les données ne sont pas sauvegardées dans Odoo.
+                            Vérifiez les résultats ci-dessous puis lancez l'import réel.
+                        </div>
+
+                        <!-- Action buttons (shown when done) -->
+                        <div id="doneActions" class="d-none d-flex gap-2 flex-wrap">
+                            <a id="viewJobLink" href="/jobs" class="btn btn-primary">
+                                <i class="bi bi-list-check me-1"></i>Voir le rapport complet
+                            </a>
+                            <button class="btn btn-outline-secondary" onclick="goToStep(4)" id="btnLaunchReal" style="display:none">
+                                <i class="bi bi-cloud-upload me-1"></i>Lancer l'import réel
+                            </button>
+                            <a href="/import" class="btn btn-outline-secondary">
+                                <i class="bi bi-plus me-1"></i>Nouvel import
+                            </a>
+                        </div>
+
+                        <!-- Cancel button (shown while running) -->
+                        <div id="cancelSection">
+                            <button class="btn btn-sm btn-outline-danger" onclick="cancelImport()" id="btnCancel">
+                                <i class="bi bi-x-circle me-1"></i>Annuler
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+        </div><!-- /content-area -->
+    </main>
+</div>
+
+<div th:replace="~{fragments/scripts :: scripts}"></div>
+<script th:src="@{/js/wizard.js}"></script>
+</body>
+</html>

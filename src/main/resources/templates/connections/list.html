@@ -1,0 +1,101 @@
+<!DOCTYPE html>
+<html xmlns:th="http://www.thymeleaf.org" lang="fr">
+<head th:replace="~{fragments/head :: head('Connexions')}"></head>
+<body class="app-body">
+<div class="d-flex h-100">
+    <div th:replace="~{fragments/sidebar :: sidebar}"></div>
+    <main class="flex-grow-1 overflow-auto">
+        <div class="topbar d-flex align-items-center px-4 py-3">
+            <h1 class="h5 mb-0 fw-semibold">Connexions Odoo</h1>
+            <a href="/connections/new" class="btn btn-primary btn-sm ms-auto">
+                <i class="bi bi-plus-lg me-1"></i>Nouvelle connexion
+            </a>
+        </div>
+        <div class="content-area px-4 py-3">
+
+            <div th:if="${success}" class="alert alert-success alert-dismissible fade show">
+                <i class="bi bi-check-circle me-2"></i><span th:text="${success}"></span>
+                <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+            </div>
+            <div th:if="${error}" class="alert alert-danger alert-dismissible fade show">
+                <i class="bi bi-exclamation-triangle me-2"></i><span th:text="${error}"></span>
+                <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+            </div>
+
+            <div class="card border-0 shadow-sm">
+                <div class="card-body p-0">
+                    <div th:if="${connections.empty}" class="text-center py-5 text-muted">
+                        <i class="bi bi-plug fs-1 d-block mb-3"></i>
+                        <p>Aucune connexion configurée.</p>
+                        <a href="/connections/new" class="btn btn-primary">Ajouter une connexion</a>
+                    </div>
+                    <div th:if="${!connections.empty}" class="table-responsive">
+                        <table class="table table-hover align-middle mb-0">
+                            <thead class="table-light">
+                                <tr>
+                                    <th>Statut</th>
+                                    <th>Nom</th>
+                                    <th>URL</th>
+                                    <th>Base de données</th>
+                                    <th>Login</th>
+                                    <th>Dernier test</th>
+                                    <th class="text-end">Actions</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                <tr th:each="conn : ${connections}">
+                                    <td>
+                                        <i th:if="${conn.lastTestSuccess == true}"
+                                           class="bi bi-check-circle-fill text-success fs-5"
+                                           title="Connexion OK"></i>
+                                        <i th:if="${conn.lastTestSuccess == false}"
+                                           class="bi bi-x-circle-fill text-danger fs-5"
+                                           title="Connexion échouée"></i>
+                                        <i th:if="${conn.lastTestSuccess == null}"
+                                           class="bi bi-circle text-muted fs-5"
+                                           title="Non testé"></i>
+                                    </td>
+                                    <td class="fw-semibold" th:text="${conn.name}">-</td>
+                                    <td class="text-muted small" th:text="${conn.url}">-</td>
+                                    <td><code th:text="${conn.database}">-</code></td>
+                                    <td class="text-muted small" th:text="${conn.login}">-</td>
+                                    <td>
+                                        <div th:if="${conn.lastTestedAt != null}" class="small">
+                                            <span th:text="${#temporals.format(conn.lastTestedAt,'dd/MM HH:mm')}"></span>
+                                            <div th:if="${conn.lastTestMessage != null}"
+                                                 class="text-muted text-truncate" style="max-width:200px"
+                                                 th:text="${conn.lastTestMessage}"></div>
+                                        </div>
+                                        <span th:if="${conn.lastTestedAt == null}" class="text-muted small">—</span>
+                                    </td>
+                                    <td class="text-end">
+                                        <div class="d-flex gap-2 justify-content-end">
+                                            <form th:action="@{/connections/{id}/test(id=${conn.id})}" method="post">
+                                                <button class="btn btn-sm btn-outline-secondary" title="Tester">
+                                                    <i class="bi bi-wifi"></i>
+                                                </button>
+                                            </form>
+                                            <a th:href="@{/connections/{id}/edit(id=${conn.id})}"
+                                               class="btn btn-sm btn-outline-secondary" title="Modifier">
+                                                <i class="bi bi-pencil"></i>
+                                            </a>
+                                            <form th:action="@{/connections/{id}/delete(id=${conn.id})}" method="post"
+                                                  onsubmit="return confirm('Supprimer cette connexion ?')">
+                                                <button class="btn btn-sm btn-outline-danger" title="Supprimer">
+                                                    <i class="bi bi-trash"></i>
+                                                </button>
+                                            </form>
+                                        </div>
+                                    </td>
+                                </tr>
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </main>
+</div>
+<div th:replace="~{fragments/scripts :: scripts}"></div>
+</body>
+</html>

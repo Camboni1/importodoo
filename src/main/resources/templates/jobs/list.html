@@ -1,0 +1,122 @@
+<!DOCTYPE html>
+<html xmlns:th="http://www.thymeleaf.org" lang="fr">
+<head th:replace="~{fragments/head :: head('Historique')}"></head>
+<body class="app-body">
+<div class="d-flex h-100">
+    <div th:replace="~{fragments/sidebar :: sidebar}"></div>
+    <main class="flex-grow-1 overflow-auto">
+        <div class="topbar d-flex align-items-center px-4 py-3">
+            <h1 class="h5 mb-0 fw-semibold">Historique des imports</h1>
+            <a href="/import" class="btn btn-primary btn-sm ms-auto">
+                <i class="bi bi-plus-lg me-1"></i>Nouvel import
+            </a>
+        </div>
+        <div class="content-area px-4 py-3">
+
+            <div th:if="${success}" class="alert alert-success alert-dismissible fade show">
+                <i class="bi bi-check-circle me-2"></i><span th:text="${success}"></span>
+                <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+            </div>
+
+            <div class="card border-0 shadow-sm">
+                <div class="card-body p-0">
+                    <div th:if="${jobs.empty}" class="text-center py-5 text-muted">
+                        <i class="bi bi-inbox fs-1 d-block mb-3"></i>
+                        <p>Aucun import trouvé.</p>
+                        <a href="/import" class="btn btn-primary">Démarrer un import</a>
+                    </div>
+                    <div th:if="${!jobs.empty}" class="table-responsive">
+                        <table class="table table-hover align-middle mb-0">
+                            <thead class="table-light">
+                                <tr>
+                                    <th>#</th>
+                                    <th>Fichier</th>
+                                    <th>Modèle</th>
+                                    <th>Statut</th>
+                                    <th class="text-center">Progression</th>
+                                    <th class="text-end">Succès</th>
+                                    <th class="text-end">Erreurs</th>
+                                    <th>Durée</th>
+                                    <th>Date</th>
+                                    <th></th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                <tr th:each="job : ${jobs.content}">
+                                    <td class="text-muted small" th:text="${job.id}">1</td>
+                                    <td>
+                                        <div class="fw-medium text-truncate" style="max-width:180px"
+                                             th:text="${job.fileName}">file.xlsx</div>
+                                        <div class="text-muted small" th:text="${job.sheetName}">Sheet1</div>
+                                    </td>
+                                    <td>
+                                        <div th:if="${job.odooModelLabel != null}"
+                                             class="small text-truncate" style="max-width:140px"
+                                             th:text="${job.odooModelLabel}">Contact</div>
+                                        <code class="small" th:text="${job.odooModel}">res.partner</code>
+                                    </td>
+                                    <td>
+                                        <div class="d-flex align-items-center gap-1">
+                                            <span th:if="${job.testMode}" class="badge bg-warning-subtle text-warning border border-warning-subtle me-1" title="Mode test">TEST</span>
+                                            <span th:class="'badge ' + (job.status.name() == 'COMPLETED' ? 'bg-success' :
+                                                                          job.status.name() == 'FAILED'    ? 'bg-danger' :
+                                                                          job.status.name() == 'RUNNING'   ? 'bg-primary' :
+                                                                          job.status.name() == 'CANCELLED' ? 'bg-secondary' :
+                                                                          job.status.name() == 'TESTING'   ? 'bg-warning text-dark' : 'bg-light text-dark')"
+                                                  th:text="${job.status}">-</span>
+                                        </div>
+                                    </td>
+                                    <td style="width:120px">
+                                        <div class="progress" style="height:6px" th:title="${job.progressPercent} + '%'">
+                                            <div class="progress-bar"
+                                                 th:classappend="${job.status.name() == 'FAILED' ? 'bg-danger' : job.status.name() == 'RUNNING' ? 'progress-bar-striped progress-bar-animated' : ''}"
+                                                 th:style="'width:' + ${job.progressPercent} + '%'"></div>
+                                        </div>
+                                        <div class="text-muted text-center" style="font-size:.7rem"
+                                             th:text="${job.processedRows} + ' / ' + ${job.totalRows}">0/0</div>
+                                    </td>
+                                    <td class="text-end text-success fw-semibold" th:text="${job.successRows}">0</td>
+                                    <td class="text-end" th:classappend="${job.errorRows > 0 ? 'text-danger fw-semibold' : 'text-muted'}"
+                                        th:text="${job.errorRows}">0</td>
+                                    <td class="text-muted small">
+                                        <span th:if="${job.durationSeconds != null}"
+                                              th:text="${job.durationSeconds} + 's'">-</span>
+                                        <span th:if="${job.durationSeconds == null}">—</span>
+                                    </td>
+                                    <td class="text-muted small"
+                                        th:text="${#temporals.format(job.createdAt,'dd/MM/yyyy HH:mm')}">-</td>
+                                    <td>
+                                        <a th:href="@{/jobs/{id}(id=${job.id})}"
+                                           class="btn btn-sm btn-outline-secondary">
+                                            <i class="bi bi-eye"></i>
+                                        </a>
+                                    </td>
+                                </tr>
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+                <!-- Pagination -->
+                <div th:if="${jobs.totalPages > 1}" class="card-footer bg-transparent">
+                    <nav>
+                        <ul class="pagination pagination-sm mb-0 justify-content-center">
+                            <li class="page-item" th:classappend="${jobs.first ? 'disabled' : ''}">
+                                <a class="page-link" th:href="@{/jobs(page=${jobs.number - 1})}">‹</a>
+                            </li>
+                            <li class="page-item" th:each="i : ${#numbers.sequence(0, jobs.totalPages - 1)}"
+                                th:classappend="${i == jobs.number ? 'active' : ''}">
+                                <a class="page-link" th:href="@{/jobs(page=${i})}" th:text="${i + 1}">1</a>
+                            </li>
+                            <li class="page-item" th:classappend="${jobs.last ? 'disabled' : ''}">
+                                <a class="page-link" th:href="@{/jobs(page=${jobs.number + 1})}">›</a>
+                            </li>
+                        </ul>
+                    </nav>
+                </div>
+            </div>
+        </div>
+    </main>
+</div>
+<div th:replace="~{fragments/scripts :: scripts}"></div>
+</body>
+</html>
