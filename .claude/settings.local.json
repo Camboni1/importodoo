@@ -6,7 +6,12 @@
       "PowerShell(Get-Content \"C:\\\\Users\\\\gille\\\\IdeaProjects\\\\odoo\\\\run.log\" | Where-Object { $_ -match \"ERROR|WARN|Exception|Caused\" } | Select-Object -First 30)",
       "PowerShell(taskkill /F /IM java.exe 2>$null)",
       "PowerShell($true)",
-      "PowerShell(cd C:\\\\Users\\\\gille\\\\IdeaProjects\\\\odoo; $env:JAVA_HOME = \"C:\\\\Users\\\\gille\\\\.jdks\\\\openjdk-25.0.1\"; .\\\\mvnw.cmd spring-boot:run 2>&1)"
+      "PowerShell(cd C:\\\\Users\\\\gille\\\\IdeaProjects\\\\odoo; $env:JAVA_HOME = \"C:\\\\Users\\\\gille\\\\.jdks\\\\openjdk-25.0.1\"; .\\\\mvnw.cmd spring-boot:run 2>&1)",
+      "Bash(python -c \"print\\('ok'\\)\")",
+      "Bash(python -c ' *)",
+      "Bash(python make_non_importe.py)",
+      "Bash(python verify.py)",
+      "Bash(./mvnw compile *)"
     ]
   }
 }

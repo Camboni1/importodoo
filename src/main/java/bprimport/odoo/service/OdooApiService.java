@@ -8,6 +8,7 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Service;
 
+import java.text.Normalizer;
 import java.util.*;
 import java.util.concurrent.ConcurrentHashMap;
 
@@ -20,6 +21,10 @@ public class OdooApiService {
 
     /** Cache: connectionId → uid */
     private final Map<Long, Integer> uidCache = new ConcurrentHashMap<>();
+    /** Cache: connectionId → Odoo language code (e.g. "fr_FR") */
+    private final Map<Long, String> langCache = new ConcurrentHashMap<>();
+    /** Cache: connectionId → full sorted model list (loaded once, filtered locally) */
+    private final Map<Long, List<OdooModelDto>> modelCache = new ConcurrentHashMap<>();
 
     public OdooApiService(XmlRpcClient xmlRpc) {
         this.xmlRpc = xmlRpc;
@@ -63,27 +68,46 @@ public class OdooApiService {
         }
     }
 
-    /** Search Odoo models by name fragment */
+    /**
+     * Search Odoo models by name or technical name fragment.
+     * All models are loaded once per connection and cached; subsequent calls filter in-memory.
+     */
     public List<OdooModelDto> searchModels(OdooConnection conn, String query) {
-        List<Object> domain = new ArrayList<>();
-        if (query != null && !query.isBlank()) {
-            domain.add(new Object[]{"name", "ilike", query});
-        }
+        List<OdooModelDto> all = modelCache.computeIfAbsent(conn.getId(), id -> fetchAllModels(conn));
+
+        if (query == null || query.isBlank()) return all;
+
+        String q = query.toLowerCase().strip();
+        return all.stream()
+            .filter(m -> m.model().toLowerCase().contains(q)
+                      || m.name().toLowerCase().contains(q))
+            .limit(50)
+            .toList();
+    }
+
+    /** Load every non-transient model from Odoo (called once per connection). */
+    private List<OdooModelDto> fetchAllModels(OdooConnection conn) {
+        log.debug("Fetching all models for connection '{}'", conn.getName());
         Map<String, Object> kwargs = new LinkedHashMap<>();
         kwargs.put("fields", List.of("name", "model", "transient"));
-        kwargs.put("limit", 100);
+        kwargs.put("limit", 2000);   // no Odoo instance has more than this
         kwargs.put("order", "name");
 
+        List<Object> emptyDomain = new ArrayList<>();
         List<Map<String, Object>> rows = callKw(conn, "ir.model", "search_read",
-            List.of(domain), kwargs);
+            List.of(emptyDomain), kwargs);
 
-        return rows.stream()
+        List<OdooModelDto> result = rows.stream()
             .filter(r -> !Boolean.TRUE.equals(r.get("transient")))
             .map(r -> new OdooModelDto(
                 String.valueOf(r.get("model")),
                 String.valueOf(r.get("name"))
             ))
+            .sorted(Comparator.comparing(OdooModelDto::name))
             .toList();
+
+        log.debug("Loaded {} models for connection '{}'", result.size(), conn.getName());
+        return result;
     }
 
     /** Get all importable fields for a model */
@@ -140,14 +164,69 @@ public class OdooApiService {
         return Boolean.TRUE.equals(result);
     }
 
-    /** Find M2O record ID by name (case-insensitive). Returns empty if not found. */
+    /** Find M2O record ID by name. Tries multiple strategies to handle encoding and hierarchy. */
     public Optional<Long> findByName(OdooConnection conn, String model, String name) {
-        List<Object> nameDomain = new ArrayList<>();
-        nameDomain.add(new Object[]{"name", "=ilike", name});
-        List<Map<String, Object>> rows = searchRead(conn, model,
-            nameDomain, List.of("id", "name"), 1);
-        if (rows.isEmpty()) return Optional.empty();
-        return Optional.of(((Number) rows.get(0).get("id")).longValue());
+        // NFC normalization fixes Excel NFD encoding vs Odoo NFC (é as precomposed char)
+        String n = Normalizer.normalize(name.strip(), Normalizer.Form.NFC);
+
+        Optional<Long> found = searchByField(conn, model, "name", "=ilike", n);
+        if (found.isPresent()) return found;
+
+        // Hierarchical models (e.g. product.category) expose path in complete_name
+        if (n.contains("/")) {
+            found = searchByField(conn, model, "complete_name", "=ilike", n);
+            if (found.isPresent()) return found;
+        }
+
+        // display_name fallback (computed, present on all records)
+        found = searchByField(conn, model, "display_name", "=ilike", n);
+        if (found.isPresent()) return found;
+
+        // Broad contains-search as last resort (handles partial encoding mismatches)
+        return searchByField(conn, model, "name", "ilike", n);
+    }
+
+    private Optional<Long> searchByField(OdooConnection conn, String model,
+                                          String field, String operator, String value) {
+        try {
+            List<Object> domain = new ArrayList<>();
+            domain.add(new Object[]{field, operator, value});
+            Map<String, Object> kwargs = new LinkedHashMap<>();
+            kwargs.put("fields", List.of("id"));
+            kwargs.put("limit", 1);
+            kwargs.put("context", Map.of("lang", getUserLang(conn)));
+            List<Map<String, Object>> rows = callKw(conn, model, "search_read",
+                List.of(domain), kwargs);
+            if (!rows.isEmpty()) return Optional.of(((Number) rows.get(0).get("id")).longValue());
+        } catch (Exception e) {
+            log.debug("searchByField {}[{} {} '{}'] failed: {}", model, field, operator, value, e.getMessage());
+        }
+        return Optional.empty();
+    }
+
+    private String getUserLang(OdooConnection conn) {
+        return langCache.computeIfAbsent(conn.getId(), id -> {
+            try {
+                int uid = getUid(conn);
+                List<Object> domain = new ArrayList<>();
+                domain.add(new Object[]{"id", "=", uid});
+                Map<String, Object> kwargs = new LinkedHashMap<>();
+                kwargs.put("fields", List.of("lang"));
+                kwargs.put("limit", 1);
+                List<Map<String, Object>> rows = callKw(conn, "res.users", "search_read",
+                    List.of(domain), kwargs);
+                if (!rows.isEmpty()) {
+                    Object lang = rows.get(0).get("lang");
+                    if (lang != null && !lang.toString().isBlank()) {
+                        log.debug("Detected Odoo lang={} for connection {}", lang, conn.getName());
+                        return lang.toString();
+                    }
+                }
+            } catch (Exception e) {
+                log.debug("Could not detect Odoo lang: {}", e.getMessage());
+            }
+            return "en_US";
+        });
     }
 
     /** Create a M2O record with just a name, return its ID */
@@ -171,9 +250,40 @@ public class OdooApiService {
         return ((Number) rows.get(0).get("res_id")).longValue();
     }
 
-    /** Invalidate cached uid for a connection */
+    /**
+     * Batch-check which values already exist in Odoo for a given field.
+     * Returns value → existing record id. Used in test mode to detect conflicts.
+     */
+    public Map<String, Long> findExistingByField(OdooConnection conn, String model,
+                                                   String field, List<String> values) {
+        if (values == null || values.isEmpty()) return Map.of();
+        try {
+            List<Object> domain = new ArrayList<>();
+            domain.add(new Object[]{field, "in", values});
+            Map<String, Object> kwargs = new LinkedHashMap<>();
+            kwargs.put("fields", List.of("id", field));
+            kwargs.put("limit", values.size() + 100);
+            List<Map<String, Object>> rows = callKw(conn, model, "search_read", List.of(domain), kwargs);
+            Map<String, Long> result = new LinkedHashMap<>();
+            for (Map<String, Object> row : rows) {
+                Object val = row.get(field);
+                Object id  = row.get("id");
+                if (val != null && id != null && !val.toString().isBlank()) {
+                    result.put(val.toString(), ((Number) id).longValue());
+                }
+            }
+            return result;
+        } catch (Exception e) {
+            log.debug("findExistingByField {}.{} failed: {}", model, field, e.getMessage());
+            return Map.of();
+        }
+    }
+
+    /** Invalidate all caches for a connection (uid, lang, models). */
     public void invalidateSession(Long connectionId) {
         uidCache.remove(connectionId);
+        langCache.remove(connectionId);
+        modelCache.remove(connectionId);
     }
 
     // -------------------------------------------------------------------------

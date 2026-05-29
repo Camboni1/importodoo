@@ -35,22 +35,22 @@
 
  :: Spring Boot ::                (v4.0.6)
 
-2026-05-22T15:53:41.551+02:00  INFO 12356 --- [Odoo Import Tool] [           main] bprimport.odoo.OdooApplication           : Starting OdooApplication using Java 25.0.1 with PID 12356 (C:\Users\gille\IdeaProjects\odoo\target\classes started by BPR in C:\Users\gille\IdeaProjects\odoo)
-2026-05-22T15:53:41.554+02:00  INFO 12356 --- [Odoo Import Tool] [           main] bprimport.odoo.OdooApplication           : No active profile set, falling back to 1 default profile: "default"
-2026-05-22T15:53:42.040+02:00  INFO 12356 --- [Odoo Import Tool] [           main] .s.d.r.c.RepositoryConfigurationDelegate : Bootstrapping Spring Data JPA repositories in DEFAULT mode.
-2026-05-22T15:53:42.087+02:00  INFO 12356 --- [Odoo Import Tool] [           main] .s.d.r.c.RepositoryConfigurationDelegate : Finished Spring Data repository scanning in 38 ms. Found 3 JPA repository interfaces.
-2026-05-22T15:53:42.477+02:00  INFO 12356 --- [Odoo Import Tool] [           main] o.s.boot.tomcat.TomcatWebServer          : Tomcat initialized with port 8080 (http)
-2026-05-22T15:53:42.490+02:00  INFO 12356 --- [Odoo Import Tool] [           main] o.apache.catalina.core.StandardService   : Starting service [Tomcat]
-2026-05-22T15:53:42.490+02:00  INFO 12356 --- [Odoo Import Tool] [           main] o.apache.catalina.core.StandardEngine    : Starting Servlet engine: [Apache Tomcat/11.0.21]
-2026-05-22T15:53:42.534+02:00  INFO 12356 --- [Odoo Import Tool] [           main] b.w.c.s.WebApplicationContextInitializer : Root WebApplicationContext: initialization completed in 944 ms
-2026-05-22T15:53:42.674+02:00  INFO 12356 --- [Odoo Import Tool] [           main] org.hibernate.orm.jpa                    : HHH008540: Processing PersistenceUnitInfo [name: default]
-2026-05-22T15:53:42.710+02:00  INFO 12356 --- [Odoo Import Tool] [           main] org.hibernate.orm.core                   : HHH000001: Hibernate ORM core version 7.2.12.Final
-2026-05-22T15:53:43.071+02:00  INFO 12356 --- [Odoo Import Tool] [           main] o.s.o.j.p.SpringPersistenceUnitInfo      : No LoadTimeWeaver setup: ignoring JPA class transformer
-2026-05-22T15:53:43.103+02:00  INFO 12356 --- [Odoo Import Tool] [           main] com.zaxxer.hikari.HikariDataSource       : HikariPool-1 - Starting...
-2026-05-22T15:53:43.340+02:00  INFO 12356 --- [Odoo Import Tool] [           main] com.zaxxer.hikari.pool.HikariPool        : HikariPool-1 - Added connection conn1: url=jdbc:h2:file:./data/odoo_import user=SA
-2026-05-22T15:53:43.341+02:00  INFO 12356 --- [Odoo Import Tool] [           main] com.zaxxer.hikari.HikariDataSource       : HikariPool-1 - Start completed.
-2026-05-22T15:53:43.361+02:00  WARN 12356 --- [Odoo Import Tool] [           main] org.hibernate.orm.deprecation            : HHH90000025: H2Dialect does not need to be specified explicitly using 'hibernate.dialect' (remove the property setting and it will be selected by default)
-2026-05-22T15:53:43.375+02:00  INFO 12356 --- [Odoo Import Tool] [           main] org.hibernate.orm.connections.pooling    : HHH10001005: Database info:
+2026-05-22T16:19:52.610+02:00  INFO 14696 --- [Odoo Import Tool] [           main] bprimport.odoo.OdooApplication           : Starting OdooApplication using Java 25.0.1 with PID 14696 (C:\Users\gille\IdeaProjects\odoo\target\classes started by BPR in C:\Users\gille\IdeaProjects\odoo)
+2026-05-22T16:19:52.613+02:00  INFO 14696 --- [Odoo Import Tool] [           main] bprimport.odoo.OdooApplication           : No active profile set, falling back to 1 default profile: "default"
+2026-05-22T16:19:53.106+02:00  INFO 14696 --- [Odoo Import Tool] [           main] .s.d.r.c.RepositoryConfigurationDelegate : Bootstrapping Spring Data JPA repositories in DEFAULT mode.
+2026-05-22T16:19:53.155+02:00  INFO 14696 --- [Odoo Import Tool] [           main] .s.d.r.c.RepositoryConfigurationDelegate : Finished Spring Data repository scanning in 37 ms. Found 3 JPA repository interfaces.
+2026-05-22T16:19:53.538+02:00  INFO 14696 --- [Odoo Import Tool] [           main] o.s.boot.tomcat.TomcatWebServer          : Tomcat initialized with port 8080 (http)
+2026-05-22T16:19:53.548+02:00  INFO 14696 --- [Odoo Import Tool] [           main] o.apache.catalina.core.StandardService   : Starting service [Tomcat]
+2026-05-22T16:19:53.549+02:00  INFO 14696 --- [Odoo Import Tool] [           main] o.apache.catalina.core.StandardEngine    : Starting Servlet engine: [Apache Tomcat/11.0.21]
+2026-05-22T16:19:53.593+02:00  INFO 14696 --- [Odoo Import Tool] [           main] b.w.c.s.WebApplicationContextInitializer : Root WebApplicationContext: initialization completed in 940 ms
+2026-05-22T16:19:53.729+02:00  INFO 14696 --- [Odoo Import Tool] [           main] org.hibernate.orm.jpa                    : HHH008540: Processing PersistenceUnitInfo [name: default]
+2026-05-22T16:19:53.763+02:00  INFO 14696 --- [Odoo Import Tool] [           main] org.hibernate.orm.core                   : HHH000001: Hibernate ORM core version 7.2.12.Final
+2026-05-22T16:19:54.092+02:00  INFO 14696 --- [Odoo Import Tool] [           main] o.s.o.j.p.SpringPersistenceUnitInfo      : No LoadTimeWeaver setup: ignoring JPA class transformer
+2026-05-22T16:19:54.115+02:00  INFO 14696 --- [Odoo Import Tool] [           main] com.zaxxer.hikari.HikariDataSource       : HikariPool-1 - Starting...
+2026-05-22T16:19:58.346+02:00  INFO 14696 --- [Odoo Import Tool] [           main] com.zaxxer.hikari.pool.HikariPool        : HikariPool-1 - Added connection conn1: url=jdbc:h2:file:./data/odoo_import user=SA
+2026-05-22T16:19:58.347+02:00  INFO 14696 --- [Odoo Import Tool] [           main] com.zaxxer.hikari.HikariDataSource       : HikariPool-1 - Start completed.
+2026-05-22T16:19:58.362+02:00  WARN 14696 --- [Odoo Import Tool] [           main] org.hibernate.orm.deprecation            : HHH90000025: H2Dialect does not need to be specified explicitly using 'hibernate.dialect' (remove the property setting and it will be selected by default)
+2026-05-22T16:19:58.379+02:00  INFO 14696 --- [Odoo Import Tool] [           main] org.hibernate.orm.connections.pooling    : HHH10001005: Database info:
 	Database JDBC URL [jdbc:h2:file:./data/odoo_import]
 	Database driver: H2 JDBC Driver
 	Database dialect: H2Dialect
@@ -62,9 +62,9 @@
 	Pool: DataSourceConnectionProvider
 	Minimum pool size: undefined/unknown
 	Maximum pool size: undefined/unknown
-2026-05-22T15:53:44.223+02:00  INFO 12356 --- [Odoo Import Tool] [           main] org.hibernate.orm.core                   : HHH000489: No JTA platform available (set 'hibernate.transaction.jta.platform' to enable JTA platform integration)
-2026-05-22T15:53:44.270+02:00  INFO 12356 --- [Odoo Import Tool] [           main] j.LocalContainerEntityManagerFactoryBean : Initialized JPA EntityManagerFactory for persistence unit 'default'
-2026-05-22T15:53:44.332+02:00  INFO 12356 --- [Odoo Import Tool] [           main] o.s.d.j.r.query.QueryEnhancerFactories   : Hibernate is in classpath; If applicable, HQL parser will be used.
-2026-05-22T15:53:44.894+02:00  WARN 12356 --- [Odoo Import Tool] [           main] JpaBaseConfiguration$JpaWebConfiguration : spring.jpa.open-in-view is enabled by default. Therefore, database queries may be performed during view rendering. Explicitly configure spring.jpa.open-in-view to disable this warning
-2026-05-22T15:53:45.201+02:00  INFO 12356 --- [Odoo Import Tool] [           main] o.s.boot.tomcat.TomcatWebServer          : Tomcat started on port 8080 (http) with context path '/'
-2026-05-22T15:53:45.205+02:00  INFO 12356 --- [Odoo Import Tool] [           main] bprimport.odoo.OdooApplication           : Started OdooApplication in 3.979 seconds (process running for 4.284)
+2026-05-22T16:19:59.156+02:00  INFO 14696 --- [Odoo Import Tool] [           main] org.hibernate.orm.core                   : HHH000489: No JTA platform available (set 'hibernate.transaction.jta.platform' to enable JTA platform integration)
+2026-05-22T16:19:59.198+02:00  INFO 14696 --- [Odoo Import Tool] [           main] j.LocalContainerEntityManagerFactoryBean : Initialized JPA EntityManagerFactory for persistence unit 'default'
+2026-05-22T16:19:59.253+02:00  INFO 14696 --- [Odoo Import Tool] [           main] o.s.d.j.r.query.QueryEnhancerFactories   : Hibernate is in classpath; If applicable, HQL parser will be used.
+2026-05-22T16:19:59.730+02:00  WARN 14696 --- [Odoo Import Tool] [           main] JpaBaseConfiguration$JpaWebConfiguration : spring.jpa.open-in-view is enabled by default. Therefore, database queries may be performed during view rendering. Explicitly configure spring.jpa.open-in-view to disable this warning
+2026-05-22T16:19:59.988+02:00  INFO 14696 --- [Odoo Import Tool] [           main] o.s.boot.tomcat.TomcatWebServer          : Tomcat started on port 8080 (http) with context path '/'
+2026-05-22T16:19:59.991+02:00  INFO 14696 --- [Odoo Import Tool] [           main] bprimport.odoo.OdooApplication           : Started OdooApplication in 7.69 seconds (process running for 7.992)

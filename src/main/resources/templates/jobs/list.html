@@ -58,11 +58,8 @@
                                     <td>
                                         <div class="d-flex align-items-center gap-1">
                                             <span th:if="${job.testMode}" class="badge bg-warning-subtle text-warning border border-warning-subtle me-1" title="Mode test">TEST</span>
-                                            <span th:class="'badge ' + (job.status.name() == 'COMPLETED' ? 'bg-success' :
-                                                                          job.status.name() == 'FAILED'    ? 'bg-danger' :
-                                                                          job.status.name() == 'RUNNING'   ? 'bg-primary' :
-                                                                          job.status.name() == 'CANCELLED' ? 'bg-secondary' :
-                                                                          job.status.name() == 'TESTING'   ? 'bg-warning text-dark' : 'bg-light text-dark')"
+                                            <span class="badge"
+                                                  th:classappend="${job.status.name() == 'COMPLETED' ? 'bg-success' : job.status.name() == 'FAILED' ? 'bg-danger' : job.status.name() == 'RUNNING' ? 'bg-primary' : job.status.name() == 'CANCELLED' ? 'bg-secondary' : job.status.name() == 'TESTING' ? 'bg-warning text-dark' : 'bg-light text-dark'}"
                                                   th:text="${job.status}">-</span>
                                         </div>
                                     </td>

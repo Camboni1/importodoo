@@ -115,10 +115,8 @@
                                                 <code class="small" th:text="${job.odooModel}">res.partner</code>
                                             </td>
                                             <td>
-                                                <span th:class="'badge ' + ${job.status.name() == 'COMPLETED' ? 'bg-success' :
-                                                                             job.status.name() == 'FAILED'    ? 'bg-danger' :
-                                                                             job.status.name() == 'RUNNING'   ? 'bg-warning text-dark' :
-                                                                             job.status.name() == 'CANCELLED' ? 'bg-secondary' : 'bg-light text-dark'}"
+                                                <span class="badge"
+                                                      th:classappend="${job.status.name() == 'COMPLETED' ? 'bg-success' : job.status.name() == 'FAILED' ? 'bg-danger' : job.status.name() == 'RUNNING' ? 'bg-warning text-dark' : job.status.name() == 'CANCELLED' ? 'bg-secondary' : 'bg-light text-dark'}"
                                                       th:text="${job.status}">PENDING</span>
                                             </td>
                                             <td class="text-end">

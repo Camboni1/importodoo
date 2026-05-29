@@ -13,13 +13,19 @@
                 </ol>
             </nav>
             <div class="ms-auto d-flex gap-2">
-                <!-- Cancel button if running -->
-                <form th:if="${job.status.name() == 'RUNNING' or job.status.name() == 'PENDING'}"
+                <!-- Cancel button if running / testing -->
+                <form th:if="${job.status.name() == 'RUNNING' or job.status.name() == 'PENDING' or job.status.name() == 'TESTING'}"
                       th:action="@{/jobs/{id}/cancel(id=${job.id})}" method="post">
                     <button class="btn btn-sm btn-danger">
                         <i class="bi bi-x-circle me-1"></i>Annuler
                     </button>
                 </form>
+                <!-- Download report (errors + warnings) when job is finished -->
+                <a th:if="${job.status.name() == 'COMPLETED' or job.status.name() == 'FAILED'}"
+                   th:href="@{/jobs/{id}/report.csv(id=${job.id})}"
+                   class="btn btn-sm btn-outline-secondary">
+                    <i class="bi bi-download me-1"></i>Rapport CSV
+                </a>
                 <a href="/import" class="btn btn-primary btn-sm">
                     <i class="bi bi-plus-lg me-1"></i>Nouvel import
                 </a>
@@ -65,10 +71,8 @@
                             <dl class="row mb-0 small">
                                 <dt class="col-5 text-muted fw-normal">Statut</dt>
                                 <dd class="col-7 mb-1">
-                                    <span th:class="'badge ' + (job.status.name() == 'COMPLETED' ? 'bg-success' :
-                                                                  job.status.name() == 'FAILED'    ? 'bg-danger' :
-                                                                  job.status.name() == 'RUNNING'   ? 'bg-primary' :
-                                                                  job.status.name() == 'CANCELLED' ? 'bg-secondary' : 'bg-light text-dark')"
+                                    <span class="badge"
+                                          th:classappend="${job.status.name() == 'COMPLETED' ? 'bg-success' : job.status.name() == 'FAILED' ? 'bg-danger' : job.status.name() == 'RUNNING' ? 'bg-primary' : job.status.name() == 'TESTING' ? 'bg-warning text-dark' : job.status.name() == 'CANCELLED' ? 'bg-secondary' : 'bg-light text-dark'}"
                                           th:text="${job.status}">-</span>
                                 </dd>
 
@@ -106,8 +110,8 @@
                         </div>
                     </div>
 
-                    <!-- Progress bar (shown while running) -->
-                    <div th:if="${job.status.name() == 'RUNNING' or job.status.name() == 'PENDING'}" class="mt-3" id="liveProgress">
+                    <!-- Progress bar (shown while running / testing) -->
+                    <div th:if="${job.status.name() == 'RUNNING' or job.status.name() == 'PENDING' or job.status.name() == 'TESTING'}" class="mt-3" id="liveProgress">
                         <div class="d-flex justify-content-between small text-muted mb-1">
                             <span th:text="${job.processedRows} + ' / ' + ${job.totalRows} + ' lignes'">0/0</span>
                             <span th:text="${job.progressPercent} + '%'">0%</span>
@@ -154,8 +158,8 @@
                                                      l.level.name() == 'WARNING' ? 'table-warning' : ''}">
                                     <td class="text-center" th:text="${l.rowNumber > 0 ? l.rowNumber : '—'}">0</td>
                                     <td>
-                                        <span th:class="'badge ' + (l.level.name() == 'ERROR'   ? 'bg-danger' :
-                                                                     l.level.name() == 'WARNING' ? 'bg-warning text-dark' : 'bg-secondary')"
+                                        <span class="badge"
+                                              th:classappend="${l.level.name() == 'ERROR' ? 'bg-danger' : l.level.name() == 'WARNING' ? 'bg-warning text-dark' : 'bg-secondary'}"
                                               th:text="${l.level}">INFO</span>
                                     </td>
                                     <td th:text="${l.message}">-</td>
@@ -189,8 +193,8 @@
 </div>
 <div th:replace="~{fragments/scripts :: scripts}"></div>
 
-<!-- Auto-refresh for running jobs -->
-<script th:if="${job.status.name() == 'RUNNING' or job.status.name() == 'PENDING'}">
+<!-- Auto-refresh for running / testing jobs -->
+<script th:if="${job.status.name() == 'RUNNING' or job.status.name() == 'PENDING' or job.status.name() == 'TESTING'}">
 const jobId = [[${job.id}]];
 const es = new EventSource('/api/jobs/' + jobId + '/stream');
 es.addEventListener('progress', e => {

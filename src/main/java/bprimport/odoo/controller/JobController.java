@@ -5,6 +5,9 @@ import bprimport.odoo.repository.ImportJobLogRepository;
 import bprimport.odoo.repository.ImportJobRepository;
 import bprimport.odoo.service.ImportJobService;
 import org.springframework.data.domain.PageRequest;
+import org.springframework.http.HttpHeaders;
+import org.springframework.http.MediaType;
+import org.springframework.http.ResponseEntity;
 import org.springframework.stereotype.Controller;
 import org.springframework.ui.Model;
 import org.springframework.web.bind.annotation.*;
@@ -59,5 +62,17 @@ public class JobController {
         jobService.cancel(id);
         flash.addFlashAttribute("success", "Annulation demandée.");
         return "redirect:/jobs/" + id;
+    }
+
+    /** Download all errors and warnings for a job as a CSV file. */
+    @GetMapping("/{id}/report.csv")
+    @ResponseBody
+    public ResponseEntity<byte[]> downloadReport(@PathVariable Long id) {
+        byte[] csv = jobService.exportReportCsv(id);
+        return ResponseEntity.ok()
+            .header(HttpHeaders.CONTENT_DISPOSITION,
+                    "attachment; filename=\"rapport-job-" + id + ".csv\"")
+            .contentType(MediaType.parseMediaType("text/csv;charset=UTF-8"))
+            .body(csv);
     }
 }

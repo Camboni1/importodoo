@@ -18,7 +18,7 @@ public class ImportJob {
     @Column(nullable = false)
     private String sheetName;
 
-    @ManyToOne(fetch = FetchType.LAZY)
+    @ManyToOne(fetch = FetchType.EAGER)
     @JoinColumn(name = "connection_id")
     private OdooConnection connection;
 

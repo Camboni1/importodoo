@@ -21,6 +21,7 @@ import org.springframework.transaction.annotation.Transactional;
 import org.springframework.web.multipart.MultipartFile;
 
 import java.io.IOException;
+import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.Paths;
@@ -34,14 +35,15 @@ public class ImportJobService {
 
     private static final Logger log = LoggerFactory.getLogger(ImportJobService.class);
 
+    /** Fields checked for uniqueness conflicts in test mode */
+    private static final Set<String> UNIQUE_CHECK_FIELDS =
+        Set.of("barcode", "default_code", "ref", "code", "ean13", "ean8");
+
     @Value("${app.upload.dir:./uploads}")
     private String uploadDir;
 
     @Value("${app.import.batch-size:100}")
     private int defaultBatchSize;
-
-    @Value("${app.import.test-limit:100}")
-    private int testLimit;
 
     private final ImportJobRepository jobRepo;
     private final ImportJobLogRepository logRepo;
@@ -121,10 +123,10 @@ public class ImportJobService {
                 .ifPresent(m -> job.setOdooModelLabel(m.name()));
         } catch (Exception ignored) {}
 
-        // Pre-count rows
+        // Pre-count rows (always the full file count, even in test mode)
         try {
             int rows = xlsxParser.countDataRows(filePath, req.sheetName());
-            job.setTotalRows(req.testMode() ? Math.min(rows, testLimit) : rows);
+            job.setTotalRows(rows);
         } catch (Exception e) {
             log.warn("Could not pre-count rows: {}", e.getMessage());
         }
@@ -172,12 +174,14 @@ public class ImportJobService {
     private void executeImport(Long jobId, AtomicBoolean cancelled) {
         ImportJob job = jobRepo.findById(jobId).orElseThrow();
         Path filePath = Paths.get(job.getTempFilePath());
+        boolean testMode = job.isTestMode();
 
-        job.setStatus(ImportStatus.RUNNING);
+        // TESTING status for test runs so the UI can distinguish them
+        job.setStatus(testMode ? ImportStatus.TESTING : ImportStatus.RUNNING);
         job.setStartedAt(LocalDateTime.now());
         jobRepo.save(job);
 
-        publishProgress(job, "Démarrage de l'import...");
+        publishProgress(job, testMode ? "Analyse du fichier complet..." : "Démarrage de l'import...");
 
         try {
             OdooConnection conn = job.getConnection();
@@ -190,20 +194,20 @@ public class ImportJobService {
 
             List<String> headers = xlsxParser.getHeaders(filePath, job.getSheetName());
             int batchSize = options.batchSize() > 0 ? options.batchSize() : defaultBatchSize;
-            boolean testMode = job.isTestMode();
 
             // M2O cache: model -> name -> id
             Map<String, Map<String, Optional<Long>>> m2oCache = new ConcurrentHashMap<>();
 
+            // Internal duplicate tracker for test mode: field -> value -> first row number
+            Map<String, Map<Object, Integer>> seenByField = new HashMap<>();
+
             // Batching state
             List<Map<String, Object>> batch = new ArrayList<>();
             int[] rowCount = {0};
-            int maxRows = testMode ? testLimit : Integer.MAX_VALUE;
 
             xlsxParser.processRows(filePath, job.getSheetName(), headers, rawRow -> {
                 if (cancelled.get()) return;
                 rowCount[0]++;
-                if (rowCount[0] > maxRows) return;
 
                 // Skip empty lines
                 if (options.skipEmptyLines() && isEmptyRow(rawRow)) {
@@ -212,8 +216,12 @@ public class ImportJobService {
                 }
 
                 try {
-                    Map<String, Object> record = buildRecord(rawRow, mappings, options, conn, m2oCache, jobId, rowCount[0]);
+                    Map<String, Object> record = buildRecord(rawRow, mappings, options, conn, m2oCache, jobId, rowCount[0], testMode);
                     if (record != null) {
+                        // In test mode: detect internal duplicates within the file
+                        if (testMode) {
+                            detectInternalDuplicates(record, seenByField, jobId, rowCount[0]);
+                        }
                         batch.add(record);
                     }
                 } catch (Exception e) {
@@ -226,7 +234,7 @@ public class ImportJobService {
 
                 // Flush batch
                 if (batch.size() >= batchSize) {
-                    flushBatch(job, conn, batch, testMode, jobId);
+                    flushBatch(job, conn, batch, testMode, jobId, mappings);
                     batch.clear();
                     publishProgress(job, "Traitement en cours: " + job.getProcessedRows() + " / " + job.getTotalRows() + " lignes");
                 }
@@ -234,7 +242,7 @@ public class ImportJobService {
 
             // Flush remaining
             if (!cancelled.get() && !batch.isEmpty()) {
-                flushBatch(job, conn, batch, testMode, jobId);
+                flushBatch(job, conn, batch, testMode, jobId, mappings);
                 batch.clear();
             }
 
@@ -258,23 +266,50 @@ public class ImportJobService {
 
     private void flushBatch(ImportJob job, OdooConnection conn,
                              List<Map<String, Object>> batch,
-                             boolean testMode, Long jobId) {
+                             boolean testMode, Long jobId,
+                             List<ColumnMappingDto> mappings) {
         if (testMode) {
-            // In test mode: validate but don't commit
+            int baseRow = job.getProcessedRows() + 1;
             job.setProcessedRows(job.getProcessedRows() + batch.size());
-            job.setSuccessRows(job.getSuccessRows() + batch.size());
-            for (int i = 0; i < batch.size(); i++) {
-                saveLog(jobId, job.getProcessedRows() - batch.size() + i + 1,
-                    LogLevel.INFO, "[TEST] Ligne validée: " + summarize(batch.get(i)));
+
+            // Check each unique field against Odoo to detect conflicts
+            Set<Integer> conflictIndices = new HashSet<>();
+            for (ColumnMappingDto m : mappings) {
+                if (!UNIQUE_CHECK_FIELDS.contains(m.odooField())) continue;
+
+                List<String> vals = new ArrayList<>();
+                for (Map<String, Object> rec : batch) {
+                    Object v = rec.get(m.odooField());
+                    if (v != null && !v.toString().isBlank()) vals.add(v.toString());
+                }
+                if (vals.isEmpty()) continue;
+
+                try {
+                    Map<String, Long> conflicts = odooApi.findExistingByField(
+                        conn, job.getOdooModel(), m.odooField(), vals);
+                    for (int i = 0; i < batch.size(); i++) {
+                        Object val = batch.get(i).get(m.odooField());
+                        if (val != null && conflicts.containsKey(val.toString())) {
+                            conflictIndices.add(i);
+                            saveLog(jobId, baseRow + i, LogLevel.ERROR,
+                                "Conflit Odoo: " + m.odooField() + "='" + val
+                                + "' existe déjà (id Odoo=" + conflicts.get(val.toString()) + ")");
+                        }
+                    }
+                } catch (Exception e) {
+                    log.debug("Odoo conflict check {}.{} failed: {}", job.getOdooModel(), m.odooField(), e.getMessage());
+                }
             }
+
+            job.setErrorRows(job.getErrorRows() + conflictIndices.size());
+            job.setSuccessRows(job.getSuccessRows() + (batch.size() - conflictIndices.size()));
         } else {
             try {
                 List<Long> ids = odooApi.createMany(conn, job.getOdooModel(), batch);
                 job.setProcessedRows(job.getProcessedRows() + batch.size());
                 job.setSuccessRows(job.getSuccessRows() + ids.size());
                 if (ids.size() < batch.size()) {
-                    int missing = batch.size() - ids.size();
-                    job.setErrorRows(job.getErrorRows() + missing);
+                    job.setErrorRows(job.getErrorRows() + (batch.size() - ids.size()));
                 }
             } catch (OdooApiException e) {
                 job.setProcessedRows(job.getProcessedRows() + batch.size());
@@ -286,12 +321,29 @@ public class ImportJobService {
         jobRepo.save(job);
     }
 
+    /** Detect values that appear more than once in the file for known unique fields. */
+    private void detectInternalDuplicates(Map<String, Object> record,
+                                           Map<String, Map<Object, Integer>> seenByField,
+                                           Long jobId, int rowNum) {
+        for (Map.Entry<String, Object> entry : record.entrySet()) {
+            String field = entry.getKey();
+            Object value = entry.getValue();
+            if (value == null || !UNIQUE_CHECK_FIELDS.contains(field)) continue;
+            Map<Object, Integer> seen = seenByField.computeIfAbsent(field, k -> new LinkedHashMap<>());
+            Integer firstRow = seen.putIfAbsent(value, rowNum);
+            if (firstRow != null) {
+                saveLog(jobId, rowNum, LogLevel.ERROR,
+                    "Doublon dans le fichier: " + field + "='" + value + "' déjà présent ligne " + firstRow);
+            }
+        }
+    }
+
     private Map<String, Object> buildRecord(Map<String, String> rawRow,
                                              List<ColumnMappingDto> mappings,
                                              ImportOptionsDto options,
                                              OdooConnection conn,
                                              Map<String, Map<String, Optional<Long>>> m2oCache,
-                                             Long jobId, int rowNum) {
+                                             Long jobId, int rowNum, boolean testMode) {
         Map<String, Object> record = new LinkedHashMap<>();
 
         for (ColumnMappingDto mapping : mappings) {
@@ -300,7 +352,7 @@ public class ImportJobService {
             String rawValue = rawRow.getOrDefault(mapping.columnName(), "").trim();
             if (rawValue.isBlank()) continue;
 
-            Object value = convertValue(rawValue, mapping, conn, m2oCache, jobId, rowNum);
+            Object value = convertValue(rawValue, mapping, conn, m2oCache, jobId, rowNum, testMode);
             if (value != null) {
                 record.put(mapping.odooField(), value);
             }
@@ -312,7 +364,7 @@ public class ImportJobService {
     private Object convertValue(String rawValue, ColumnMappingDto mapping,
                                 OdooConnection conn,
                                 Map<String, Map<String, Optional<Long>>> m2oCache,
-                                Long jobId, int rowNum) {
+                                Long jobId, int rowNum, boolean testMode) {
         return switch (mapping.odooFieldType()) {
             case "many2one" -> {
                 String relModel = mapping.relatedModel();
@@ -325,11 +377,17 @@ public class ImportJobService {
                 if (cached == null) {
                     Optional<Long> found = odooApi.findByName(conn, relModel, rawValue);
                     if (found.isEmpty() && mapping.createIfNotFound()) {
-                        Long newId = odooApi.createSimple(conn, relModel, rawValue);
-                        found = newId != null ? Optional.of(newId) : Optional.empty();
-                        if (found.isPresent()) {
-                            saveLog(jobId, rowNum, LogLevel.INFO,
-                                "Créé '" + rawValue + "' dans " + relModel);
+                        if (testMode) {
+                            // Never create records in test mode
+                            saveLog(jobId, rowNum, LogLevel.WARNING,
+                                "[TEST] Serait créé: '" + rawValue + "' dans " + relModel);
+                        } else {
+                            Long newId = odooApi.createSimple(conn, relModel, rawValue);
+                            found = newId != null ? Optional.of(newId) : Optional.empty();
+                            if (found.isPresent()) {
+                                saveLog(jobId, rowNum, LogLevel.INFO,
+                                    "Créé '" + rawValue + "' dans " + relModel);
+                            }
                         }
                     }
                     modelCache.put(rawValue.toLowerCase(), found);
@@ -359,6 +417,33 @@ public class ImportJobService {
             }
             default -> rawValue;
         };
+    }
+
+    // -------------------------------------------------------------------------
+    // Report export
+    // -------------------------------------------------------------------------
+
+    /** Build a UTF-8 CSV (with BOM for Excel) of all ERROR and WARNING log entries. */
+    public byte[] exportReportCsv(Long jobId) {
+        List<ImportJobLog> errors = logRepo.findByJobIdAndLevelOrderByRowNumberAsc(jobId, LogLevel.ERROR);
+        List<ImportJobLog> warns  = logRepo.findByJobIdAndLevelOrderByRowNumberAsc(jobId, LogLevel.WARNING);
+        List<ImportJobLog> all = new ArrayList<>(errors.size() + warns.size());
+        all.addAll(errors);
+        all.addAll(warns);
+        all.sort(Comparator.comparingInt(ImportJobLog::getRowNumber));
+
+        StringBuilder sb = new StringBuilder();
+        sb.append('﻿'); // BOM — makes Excel open UTF-8 correctly
+        sb.append("Ligne;Niveau;Message\r\n");
+        for (ImportJobLog l : all) {
+            String rowLabel = l.getRowNumber() > 0 ? String.valueOf(l.getRowNumber()) : "-";
+            String msg = l.getMessage() != null ? l.getMessage().replace("\"", "\"\"") : "";
+            sb.append(rowLabel).append(';')
+              .append(l.getLevel()).append(';')
+              .append('"').append(msg).append('"')
+              .append("\r\n");
+        }
+        return sb.toString().getBytes(StandardCharsets.UTF_8);
     }
 
     // -------------------------------------------------------------------------

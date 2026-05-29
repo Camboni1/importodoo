@@ -14,6 +14,10 @@ const state = {
     currentJobId: null,
     sseSource: null,
     currentStep: 1,
+    // Model cache (loaded once per connection, filtered locally for instant search)
+    allModels: null,
+    modelsConnId: null,
+    modelsLoading: false,
 };
 
 // ----------------------------------------------------------------
@@ -42,6 +46,8 @@ function goToStep(n) {
 async function goToStep2() {
     if (!state.connectionId || !state.fileId || !state.sheetName) return;
     goToStep(2);
+    // Start loading all models in background so search is instant
+    preloadModels();
 }
 
 async function goToStep3() {
@@ -62,7 +68,13 @@ async function goToStep4() {
 // ----------------------------------------------------------------
 
 function onConnectionChange() {
+    const prev = state.connectionId;
     state.connectionId = document.getElementById('connectionId').value || null;
+    // Clear cached models when the connection changes
+    if (state.connectionId !== prev) {
+        state.allModels = null;
+        state.modelsConnId = null;
+    }
     checkStep1();
 }
 
@@ -188,23 +200,73 @@ function checkStep1() {
 
 let modelSearchTimer = null;
 
-function searchModels(q) {
-    clearTimeout(modelSearchTimer);
+/** Pre-fetch all models for the current connection into the local cache. */
+async function preloadModels() {
     if (!state.connectionId) return;
+    if (state.modelsConnId === state.connectionId) return;  // already loaded
+    if (state.modelsLoading) return;
+
+    state.modelsLoading = true;
+    state.allModels = null;
+    try {
+        const r = await fetch(`/api/models?connectionId=${state.connectionId}&q=`);
+        const data = await r.json();
+        if (!data.error && Array.isArray(data.models)) {
+            state.allModels    = data.models;
+            state.modelsConnId = state.connectionId;
+        }
+    } catch (e) { /* silent — will fall back to server search */ }
+    finally { state.modelsLoading = false; }
+}
+
+function searchModels(q) {
+    if (!state.connectionId) return;
+    const dd = document.getElementById('modelResults');
+
     if (q.length < 1) {
-        document.getElementById('modelResults').classList.add('d-none');
+        dd.classList.add('d-none');
         return;
     }
+
+    // ── Fast path: filter local cache ──────────────────────────────────────
+    if (state.allModels) {
+        const qLow = q.toLowerCase();
+        const hits = state.allModels.filter(m =>
+            m.model.toLowerCase().includes(qLow) ||
+            m.name.toLowerCase().includes(qLow)
+        ).slice(0, 40);
+        renderModelDropdown(hits);
+        return;
+    }
+
+    // ── While cache is still loading, show a spinner ───────────────────────
+    if (state.modelsLoading) {
+        dd.innerHTML = '<div class="p-3 text-muted small"><span class="spinner-border spinner-border-sm me-2"></span>Chargement des modèles…</div>';
+        dd.classList.remove('d-none');
+        // Retry once loading completes
+        const pendingQ = q;
+        const wait = setInterval(() => {
+            if (!state.modelsLoading) {
+                clearInterval(wait);
+                if ((document.getElementById('modelSearch')?.value || '') === pendingQ) {
+                    searchModels(pendingQ);
+                }
+            }
+        }, 150);
+        return;
+    }
+
+    // ── Fallback: server search with debounce (cache not available) ─────────
+    clearTimeout(modelSearchTimer);
     modelSearchTimer = setTimeout(async () => {
+        if (state.allModels) { searchModels(q); return; }  // cache loaded while waiting
         try {
             const r = await fetch(`/api/models?connectionId=${state.connectionId}&q=${encodeURIComponent(q)}`);
             const data = await r.json();
             if (data.error) return;
             renderModelDropdown(data.models);
-        } catch (e) {
-            console.error(e);
-        }
-    }, 250);
+        } catch (e) { console.error(e); }
+    }, 200);
 }
 
 function renderModelDropdown(models) {
